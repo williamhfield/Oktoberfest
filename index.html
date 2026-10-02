@@ -1,0 +1,377 @@
+<title>Wiesn Drink Counter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Barlow+Semi+Condensed:wght@500;600;800&display=swap">
+<style>
+  /* Layout: one centered column — countdown, big total, two tap-to-add drink buttons, undo + log */
+  :root {
+    --bg: #f3f6fb;
+    --surface: #ffffff;
+    --fg: #14233b;
+    --muted: #5b6b84;
+    --blue: #1f6fc4;
+    --rauten: #dbe8f7;
+    --beer: #f2b230;
+    --beer-deep: #d98e0f;
+    --foam: #fffaf0;
+    --glass: #e6eef7;
+    --glass-line: #9fb3cc;
+    --can: #2a5fa8;
+    --can-light: #4f86d1;
+    --metal: #c9d2dd;
+    --line: #d5deea;
+    --font-display: "UnifrakturMaguntia", "Old English Text MT", Georgia, serif;
+    --font-body: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1626; --surface: #16233a; --fg: #eaf1fb; --muted: #9fb0c8;
+      --blue: #6fa8ec; --rauten: #13213a; --glass: #22344f; --glass-line: #6a83a6;
+      --line: #263856; --foam: #fff6e0; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1626; --surface: #16233a; --fg: #eaf1fb; --muted: #9fb0c8;
+    --blue: #6fa8ec; --rauten: #13213a; --glass: #22344f; --glass-line: #6a83a6;
+    --line: #263856; --foam: #fff6e0; color-scheme: dark;
+  }
+
+  html, body { min-height: 100%; }
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(135deg, var(--rauten) 25%, transparent 25%),
+      linear-gradient(225deg, var(--rauten) 25%, transparent 25%),
+      linear-gradient(45deg, var(--rauten) 25%, transparent 25%),
+      linear-gradient(315deg, var(--rauten) 25%, transparent 25%);
+    background-size: 56px 32px;
+    background-position: 0 0, 0 0, 0 0, 0 0;
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 17px;
+  }
+  .wrap {
+    max-width: 520px;
+    margin: 0 auto;
+    padding-inline: 16px;
+    padding-block: 20px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(2.2rem, 9vw, 3rem);
+    line-height: 1;
+    margin: 0;
+    text-align: center;
+    color: var(--blue);
+    text-wrap: balance;
+  }
+  .name-row { display: flex; justify-content: center; }
+  .name-row label { position: absolute; left: -9999px; }
+  #friend {
+    font: 600 1.15rem var(--font-body);
+    color: var(--fg);
+    background: transparent;
+    border: 0;
+    border-bottom: 2px dashed var(--line);
+    text-align: center;
+    width: 14ch;
+    max-width: 100%;
+    padding: 2px 4px;
+  }
+  #friend:focus { outline: none; border-bottom-color: var(--blue); }
+
+  .eyebrow {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+    margin: 0 0 6px;
+  }
+  .countdown {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .countdown b { display: block; font-size: 2rem; font-weight: 800; line-height: 1; }
+  .countdown span { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .ended { text-align: center; font-weight: 800; font-size: 1.4rem; color: var(--beer-deep); }
+
+  .total { text-align: center; }
+  .total .num {
+    font-size: clamp(4.5rem, 24vw, 7rem);
+    font-weight: 800;
+    line-height: 0.9;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+  }
+  .total .unit { color: var(--muted); font-weight: 600; }
+  .bump { animation: bump 0.35s ease-out; }
+  @keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+  .drinks { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .drink {
+    appearance: none;
+    background: var(--surface);
+    border: 2px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 8px 12px;
+    color: var(--fg);
+    font: inherit;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    transition: transform 0.08s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .drink:hover { border-color: var(--blue); }
+  .drink:active { transform: scale(0.96); }
+  .drink:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  .drink svg { width: 100%; max-width: 150px; height: auto; }
+  .drink .label { font-weight: 800; font-size: 1.15rem; }
+  .drink .worth {
+    font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .drink .tally { font-size: 0.9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    appearance: none;
+    font: 600 1rem var(--font-body);
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: 2px solid var(--line);
+    background: var(--surface);
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--blue); }
+  .btn:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+  .btn:disabled { opacity: 0.45; cursor: default; }
+  .btn.danger { color: #c0392b; }
+  .confirm { text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+
+  .log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-variant-numeric: tabular-nums; }
+  .log li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed var(--line); padding-bottom: 6px; }
+  .log li:last-child { border-bottom: 0; }
+  .log .t { color: var(--muted); }
+  .empty { color: var(--muted); text-align: center; margin: 0; }
+
+  @media (prefers-reduced-motion: reduce) { .bump { animation: none; } .drink { transition: none; } }
+</style>
+
+<div class="wrap">
+  <h1>O'zapft is!</h1>
+  <div class="name-row">
+    <label for="friend">Friend's name</label>
+    <input id="friend" type="text" placeholder="Friend's name" maxlength="24" autocomplete="off">
+  </div>
+
+  <section class="panel">
+    <p class="eyebrow">Last call · Sunday 15:00 Munich</p>
+    <div id="countdown" class="countdown">
+      <div><b id="cd-d">0</b><span>days</span></div>
+      <div><b id="cd-h">00</b><span>hrs</span></div>
+      <div><b id="cd-m">00</b><span>min</span></div>
+      <div><b id="cd-s">00</b><span>sec</span></div>
+    </div>
+    <div id="ended" class="ended" hidden>Prost! Time's up.</div>
+  </section>
+
+  <section class="panel total" aria-live="polite">
+    <p class="eyebrow" id="total-label">Beers so far</p>
+    <div class="num" id="total">0</div>
+    <div class="unit" id="total-unit">beers</div>
+  </section>
+
+  <div class="drinks">
+    <button class="drink" id="add-mass" type="button" aria-label="Add a Maß, counts as 3 beers">
+      <!-- Maßkrug: 1 litre dimpled glass stein -->
+      <svg viewBox="0 0 160 180" aria-hidden="true">
+        <!-- handle -->
+        <path d="M112 52 h18 a20 20 0 0 1 20 20 v46 a20 20 0 0 1 -20 20 h-18" fill="none" stroke="var(--glass-line)" stroke-width="12" stroke-linecap="round"/>
+        <path d="M112 52 h18 a20 20 0 0 1 20 20 v46 a20 20 0 0 1 -20 20 h-18" fill="none" stroke="var(--glass)" stroke-width="5" stroke-linecap="round"/>
+        <!-- beer body -->
+        <rect x="18" y="38" width="96" height="128" rx="8" fill="var(--beer)"/>
+        <rect x="18" y="140" width="96" height="26" rx="8" fill="var(--beer-deep)" opacity="0.45"/>
+        <!-- bubbles -->
+        <circle cx="40" cy="120" r="3" fill="var(--foam)" opacity="0.7"/>
+        <circle cx="52" cy="95" r="2" fill="var(--foam)" opacity="0.7"/>
+        <circle cx="88" cy="110" r="2.5" fill="var(--foam)" opacity="0.7"/>
+        <circle cx="74" cy="76" r="2" fill="var(--foam)" opacity="0.7"/>
+        <circle cx="96" cy="140" r="3" fill="var(--foam)" opacity="0.7"/>
+        <!-- dimples -->
+        <g fill="none" stroke="var(--foam)" stroke-width="2" opacity="0.45">
+          <ellipse cx="38" cy="70" rx="9" ry="12"/><ellipse cx="66" cy="70" rx="9" ry="12"/><ellipse cx="94" cy="70" rx="9" ry="12"/>
+          <ellipse cx="38" cy="102" rx="9" ry="12"/><ellipse cx="66" cy="102" rx="9" ry="12"/><ellipse cx="94" cy="102" rx="9" ry="12"/>
+          <ellipse cx="38" cy="134" rx="9" ry="12"/><ellipse cx="66" cy="134" rx="9" ry="12"/><ellipse cx="94" cy="134" rx="9" ry="12"/>
+        </g>
+        <!-- glass outline -->
+        <rect x="14" y="30" width="104" height="140" rx="10" fill="none" stroke="var(--glass-line)" stroke-width="5"/>
+        <!-- foam head -->
+        <path d="M10 40 q6 -22 24 -16 q8 -16 26 -8 q12 -14 28 -4 q16 -8 24 8 q14 2 10 20 z" fill="var(--foam)" stroke="var(--glass-line)" stroke-width="2"/>
+        <!-- shine -->
+        <rect x="24" y="48" width="6" height="104" rx="3" fill="#ffffff" opacity="0.35"/>
+      </svg>
+      <span class="label">Maß</span>
+      <span class="worth">+3 beers</span>
+      <span class="tally" id="tally-mass">0 so far</span>
+    </button>
+
+    <button class="drink" id="add-can" type="button" aria-label="Add a can, counts as 1 beer">
+      <!-- 0.5 L beer can -->
+      <svg viewBox="0 0 160 180" aria-hidden="true">
+        <!-- top rim -->
+        <ellipse cx="80" cy="26" rx="34" ry="9" fill="var(--metal)" stroke="var(--glass-line)" stroke-width="2"/>
+        <path d="M46 26 L50 36 H110 L114 26" fill="var(--metal)"/>
+        <!-- body -->
+        <rect x="44" y="34" width="72" height="128" rx="6" fill="var(--can)"/>
+        <rect x="44" y="34" width="72" height="128" rx="6" fill="none" stroke="var(--glass-line)" stroke-width="2"/>
+        <!-- bottom -->
+        <path d="M44 156 Q44 168 56 170 H104 Q116 168 116 156 Z" fill="var(--metal)"/>
+        <!-- band with diamonds -->
+        <rect x="44" y="70" width="72" height="34" fill="#ffffff"/>
+        <g fill="var(--can-light)">
+          <path d="M44 70 l12 17 l-12 17 z"/>
+          <path d="M68 70 l12 17 l-12 17 l-12 -17 z"/>
+          <path d="M92 70 l12 17 l-12 17 l-12 -17 z"/>
+          <path d="M116 70 l-12 17 l12 17 z"/>
+        </g>
+        <!-- label text -->
+        <text x="80" y="128" text-anchor="middle" font-family="UnifrakturMaguntia, Georgia, serif" font-size="22" fill="#ffffff">Helles</text>
+        <text x="80" y="146" text-anchor="middle" font-family="Barlow Semi Condensed, Arial Narrow, sans-serif" font-size="11" font-weight="600" letter-spacing="1.5" fill="#ffffff" opacity="0.8">0,5 L</text>
+        <!-- pull tab -->
+        <ellipse cx="80" cy="25" rx="10" ry="3.5" fill="none" stroke="var(--glass-line)" stroke-width="2"/>
+        <!-- shine -->
+        <rect x="52" y="40" width="6" height="114" rx="3" fill="#ffffff" opacity="0.3"/>
+      </svg>
+      <span class="label">Can</span>
+      <span class="worth">+1 beer</span>
+      <span class="tally" id="tally-can">0 so far</span>
+    </button>
+  </div>
+
+  <div class="actions">
+    <button class="btn" id="undo" type="button">Undo last</button>
+    <button class="btn danger" id="reset" type="button">Reset</button>
+  </div>
+  <div class="panel confirm" id="confirm" hidden>
+    <span>Clear every drink and start over?</span>
+    <div class="actions">
+      <button class="btn danger" id="confirm-yes" type="button">Yes, reset</button>
+      <button class="btn" id="confirm-no" type="button">Keep counting</button>
+    </div>
+  </div>
+
+  <section class="panel">
+    <p class="eyebrow">Drink log</p>
+    <ul class="log" id="log"></ul>
+    <p class="empty" id="log-empty">Tap the Maß or the can to log the first drink.</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  // Sunday 4 Oct 2026, 15:00 in Munich (CEST, UTC+2)
+  var DEADLINE = new Date("2026-10-04T15:00:00+02:00").getTime();
+  var KEY = "wiesn-drink-counter-v1";
+  var DRINKS = { mass: { name: "Maß", beers: 3 }, can: { name: "Can", beers: 1 } };
+
+  var state = { name: "", log: [] };
+  try {
+    var saved = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (saved && Array.isArray(saved.log)) state = saved;
+  } catch (e) {}
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  var $ = function (id) { return document.getElementById(id); };
+  var fmtTime = new Intl.DateTimeFormat([], { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
+
+  function render(bump) {
+    var total = 0, counts = { mass: 0, can: 0 };
+    state.log.forEach(function (e) { total += DRINKS[e.type].beers; counts[e.type]++; });
+    $("total").textContent = total;
+    $("total-unit").textContent = total === 1 ? "beer" : "beers";
+    var who = state.name.trim();
+    $("total-label").textContent = who ? who + "'s beers so far" : "Beers so far";
+    $("tally-mass").textContent = counts.mass + " so far";
+    $("tally-can").textContent = counts.can + " so far";
+    $("undo").disabled = state.log.length === 0;
+    $("reset").disabled = state.log.length === 0;
+
+    var ul = $("log");
+    ul.innerHTML = "";
+    state.log.slice().reverse().forEach(function (e) {
+      var li = document.createElement("li");
+      var a = document.createElement("span");
+      a.textContent = DRINKS[e.type].name + " (+" + DRINKS[e.type].beers + ")";
+      var b = document.createElement("span");
+      b.className = "t";
+      b.textContent = fmtTime.format(new Date(e.at));
+      li.append(a, b);
+      ul.appendChild(li);
+    });
+    $("log-empty").hidden = state.log.length > 0;
+
+    if (bump) {
+      var n = $("total");
+      n.classList.remove("bump"); void n.offsetWidth; n.classList.add("bump");
+    }
+  }
+
+  function add(type) {
+    state.log.push({ type: type, at: Date.now() });
+    save(); render(true);
+  }
+
+  $("add-mass").addEventListener("click", function () { add("mass"); });
+  $("add-can").addEventListener("click", function () { add("can"); });
+  $("undo").addEventListener("click", function () { state.log.pop(); save(); render(true); });
+  $("reset").addEventListener("click", function () { $("confirm").hidden = false; });
+  $("confirm-no").addEventListener("click", function () { $("confirm").hidden = true; });
+  $("confirm-yes").addEventListener("click", function () {
+    state.log = []; save(); render(true); $("confirm").hidden = true;
+  });
+
+  var nameInput = $("friend");
+  nameInput.value = state.name || "";
+  nameInput.addEventListener("input", function () { state.name = nameInput.value; save(); render(false); });
+
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function tick() {
+    var ms = DEADLINE - Date.now();
+    if (ms <= 0) {
+      $("countdown").hidden = true;
+      $("ended").hidden = false;
+      return;
+    }
+    var s = Math.floor(ms / 1000);
+    $("cd-d").textContent = Math.floor(s / 86400);
+    $("cd-h").textContent = pad(Math.floor(s % 86400 / 3600));
+    $("cd-m").textContent = pad(Math.floor(s % 3600 / 60));
+    $("cd-s").textContent = pad(s % 60);
+  }
+
+  render(false);
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
